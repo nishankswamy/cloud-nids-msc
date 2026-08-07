@@ -86,7 +86,7 @@ relative to SMOTE, by penalising errors rather than synthesising samples.
 |---|---|---|---|---|---|---|---|
 | XGBoost | SMOTE (E1) | 0.929 | 0.998 | 0.955 | 0.57 | 296 | 40.1 |
 | XGBoost | Class weights (E2) | 0.950 | 0.997 | **0.969** | **0.67** | **190** | 115.6 |
-| Random Forest | SMOTE (E1) | 0.882 | 0.996 | 0.913 | 0.57 | 296 | 56.3 |
+| Random Forest | SMOTE (E1) | 0.882 | 0.996 | 0.913 | 0.30 | 914 | 56.3 |
 | Random Forest | Class weights (E2) | 0.879 | 0.997 | 0.900 | **0.20** | **1,551** | 127.4 |
 
 *Bots FP = Normal Traffic flows misclassified as Bots.*
@@ -119,3 +119,65 @@ relative to SMOTE, by penalising errors rather than synthesising samples.
 ### Next
 E3: repeated runs across seeds to establish whether the XGBoost gap is
 stable; consider precision-recall threshold tuning for Bots specifically.
+## E3 — Seed stability analysis
+
+**Date:** 2026-08-07
+**Script:** `src/experiment_seed_stability.py --seeds 3`
+**Seeds:** 42, 7, 123 (12 runs: 2 families x 2 strategies x 3 seeds)
+
+### Motivation
+E2's conclusion rested on a single run per configuration. This repeats both
+strategies across seeds to separate genuine effects from run-to-run variance.
+
+### Summary (mean across 3 seeds)
+
+| Family | Strategy | Macro F1 (SD) | Macro P | Bots P (SD) | Bots R | Benign->Bots FP | Train (s) |
+|---|---|---|---|---|---|---|---|
+| XGBoost | Class weights | **0.9692** (0.0019) | 0.949 | **0.675** (0.013) | 0.992 | 186 | 136 |
+| XGBoost | SMOTE | 0.9564 (0.0027) | 0.931 | 0.579 (0.013) | 0.993 | 281 | 46 |
+| Random Forest | SMOTE | 0.9129 (0.0009) | 0.883 | 0.296 (0.006) | 0.987 | 914 | 79 |
+| Random Forest | Class weights | 0.8980 (0.0025) | 0.878 | 0.189 (0.009) | 0.987 | 173 | 173 |
+
+### Paired comparison (class_weights - smote), per seed
+
+| Family | Seed 42 | Seed 7 | Seed 123 | Mean delta (SD) | Direction |
+|---|---|---|---|---|---|
+| XGBoost | +0.0140 | +0.0117 | +0.0127 | **+0.0128** (0.0012) | Class weights better, 3/3 |
+| Random Forest | -0.0128 | -0.0153 | -0.0166 | **-0.0149** (0.0020) | SMOTE better, 3/3 |
+
+### Findings
+1. **A model x strategy interaction effect is confirmed.** Class weighting
+   improves XGBoost and degrades Random Forest, consistently, on every seed.
+   The technique is not model-agnostic.
+2. **Effects exceed noise by roughly an order of magnitude.** XGBoost delta
+   +0.0128 against SD 0.0012; RF delta -0.0149 against SD 0.0020. Direction
+   held 3/3 for both families.
+3. **Seed variance is small overall** (macro F1 SD 0.0009-0.0027). Single-run
+   figures in E1/E2 were therefore representative, but this could not be
+   known without repetition.
+4. **Bots precision is also stable across seeds** (SD 0.006-0.013),
+   contrary to the expectation that a class with only 1,559 training samples
+   would show high sampling variance. Instability lies in strategy choice,
+   not in sampling.
+5. **Best configuration: XGBoost + class weights**, macro F1 0.9692,
+   Bots precision 0.675, 186 benign flows misclassified as Bots per
+   ~504K test flows. Selected for deployment.
+
+### Correction to E2
+E1 reported per-class metrics for the best model (XGBoost) only. The Bots
+precision of 0.57 quoted for Random Forest + SMOTE in the E2 table was
+therefore incorrect; E3 measures it at 0.296. The direction of the RF
+degradation under class weighting stands (0.296 -> 0.189), but the
+magnitude was overstated.
+
+### Limitations
+- Three seeds permits descriptive comparison only; no formal significance
+  testing. Five or more seeds would support a paired t-test or Wilcoxon.
+- Only two imbalance strategies compared. Others (ADASYN, Tomek links,
+  focal loss, threshold tuning) untested.
+- Bots precision remains the binding constraint at 0.675 — roughly one in
+  three Bots alerts is a false positive.
+
+### Next
+E4: precision-recall threshold tuning for the Bots class on the selected
+XGBoost + class weights configuration.

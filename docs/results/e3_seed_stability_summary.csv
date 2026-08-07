@@ -1,0 +1,5 @@
+family,strategy,f1_mean,f1_std,prec_mean,bots_p_mean,bots_p_std,bots_r_mean,benign_as_bots_mean,train_mean
+random_forest,class_weights,0.898,0.0025,0.8779,0.1889,0.0091,0.9871,1652.6667,173.1667
+random_forest,smote,0.9129,0.0009,0.8832,0.2959,0.0059,0.9871,914.0,78.5667
+xgboost,class_weights,0.9692,0.0019,0.9493,0.6754,0.0126,0.9923,185.6667,135.6667
+xgboost,smote,0.9564,0.0027,0.9306,0.5788,0.0132,0.9931,281.3333,46.2
