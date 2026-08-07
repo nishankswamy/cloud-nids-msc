@@ -35,6 +35,7 @@ def train_all(data: dict):
     os.makedirs(MODELS_DIR, exist_ok=True)
     models = get_models()
     trained = {}
+    timings = {}
 
     for name, model in models.items():
         print(f"\nTraining {name}...")
@@ -47,7 +48,9 @@ def train_all(data: dict):
         joblib.dump(model, out_path)
         print(f"  Saved to {out_path}")
         trained[name] = model
+        timings[name] = elapsed
 
+    joblib.dump(timings, os.path.join(MODELS_DIR, "training_times.pkl"))
     return trained
 
 

@@ -34,7 +34,7 @@ def compare_models(data: dict):
     predictions = {}
 
     for fname in os.listdir(MODELS_DIR):
-        if not fname.endswith(".pkl"):
+        if not fname.endswith(".pkl") or fname == "training_times.pkl":
             continue
         name = fname.replace(".pkl", "")
         model = joblib.load(os.path.join(MODELS_DIR, fname))
@@ -43,6 +43,12 @@ def compare_models(data: dict):
         predictions[name] = y_pred
 
     results_df = pd.DataFrame(results).sort_values("f1_macro", ascending=False)
+
+    times_path = os.path.join(MODELS_DIR, "training_times.pkl")
+    if os.path.exists(times_path):
+        times = joblib.load(times_path)
+        results_df["train_secs"] = results_df["model"].map(times).round(1)
+
     print("=" * 70)
     print("MODEL COMPARISON (sorted by macro F1-score)")
     print("=" * 70)
