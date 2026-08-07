@@ -46,10 +46,13 @@ def load_test_pool(n=4000):
     num = df.select_dtypes(include="number").columns
     df[num] = df[num].replace([np.inf, -np.inf], np.nan)
     df = df.dropna()
-    pool = df.groupby(LABEL_COL, group_keys=False).apply(
-        lambda g: g.sample(min(len(g), n // 7), random_state=42))
+    per_class = max(1, n // df[LABEL_COL].nunique())
+    parts = []
+    for cls, grp in df.groupby(LABEL_COL, sort=False):
+        parts.append(grp.sample(min(len(grp), per_class), random_state=42))
+    pool = pd.concat(parts, ignore_index=True)
     feats = [c for c in df.columns if c != LABEL_COL]
-    return pool.reset_index(drop=True), feats
+    return pool, feats
 
 
 def invoke(features):

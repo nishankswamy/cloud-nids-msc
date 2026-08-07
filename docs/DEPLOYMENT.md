@@ -243,3 +243,55 @@ holding valid credentials could invoke it without rate limiting. Lambda
 reserved concurrency would cap total concurrent executions but cannot rate
 limit per caller. This is recorded as an unmitigated Denial of Service
 exposure in the threat model.
+
+## 9. Analyst console
+
+A local Streamlit application (`dashboard/app.py`) provides an operator
+interface to the deployed endpoint. It invokes Lambda via boto3 with SigV4
+signing, and reads live operational metrics from CloudWatch.
+
+Hosting is local by design: an S3-hosted browser client could not call the
+IAM-authenticated endpoint without either embedding credentials in
+client-side code or introducing Cognito. An analyst workstation calling a
+cloud inference API is a realistic deployment pattern and avoids both the
+security flaw and the cost.
+
+### 9.1 Live detection run
+
+200 attack flows sampled from held-out data, scored through the deployed
+VPC-isolated Lambda:
+
+| Class | Flows | Correct | Recall |
+|---|---|---|---|
+| Bots | 30 | 29 | 0.967 |
+| Brute Force | 38 | 38 | 1.000 |
+| DDoS | 28 | 28 | 1.000 |
+| DoS | 44 | 44 | 1.000 |
+| Port Scanning | 26 | 26 | 1.000 |
+| Web Attacks | 34 | 34 | 1.000 |
+| **Overall** | **200** | **199** | **0.995** |
+
+**The single failure reproduces a predicted trade-off.** The one missed
+flow was a Bot classified as Normal Traffic. E4 measured Bots recall at
+0.939 after threshold tuning to t=0.99, a deliberate exchange of recall for
+precision. Observed recall of 0.967 on 30 samples is consistent with that
+measurement. Live operation reproduced a quantified, accepted limitation
+rather than revealing an unknown one.
+
+**Confidence separation supports a triage rule.** Correct predictions
+averaged 0.9999 confidence; the single misclassification returned 0.227.
+The model was not confidently wrong. A production deployment could route
+predictions below a confidence floor (e.g. 0.5) to manual analyst review,
+capturing this failure mode without altering the model. This is identified
+as a concrete operational recommendation.
+
+### 9.2 Console features
+
+- Detection review: sample held-out flows or upload a CSV of features
+- Accuracy against ground truth where labels are available
+- Class distribution, sortable detections, isolated misclassification panel
+- CSV export of results
+- Operational telemetry from CloudWatch: invocations, errors, error rate,
+  mean duration, throttles
+- Model provenance panel rendering the deployed artefact's metadata,
+  including ONNX conversion verification figures
