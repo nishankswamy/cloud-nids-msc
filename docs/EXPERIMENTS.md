@@ -181,3 +181,66 @@ magnitude was overstated.
 ### Next
 E4: precision-recall threshold tuning for the Bots class on the selected
 XGBoost + class weights configuration.
+## E4 — Decision-threshold tuning for the Bots class
+
+**Date:** 2026-08-07
+**Script:** `src/experiment_threshold_tuning.py`
+**Config:** XGBoost + class weights (selected in E3), seed 42
+
+### Motivation
+E3 left Bots precision at 0.675 — roughly one in three Bots alerts false.
+Default argmax prediction offers no control over that trade-off. This
+experiment introduces an explicit threshold rule:
+`predict Bots if P(Bots) >= t, else argmax over remaining classes`.
+
+### Method
+Split changed to 60/20/20 (train/validation/test), stratified. The threshold
+was swept and selected on **validation only**; the test set was untouched
+until the chosen threshold was applied once. This avoids selecting a
+hyperparameter on the data used to report results.
+
+### Test-set results
+
+| Config | Bots P | Bots R | Bots F1 | Macro F1 | Bots FP |
+|---|---|---|---|---|---|
+| argmax (baseline) | 0.672 | 0.992 | 0.801 | 0.9682 | 189 |
+| threshold t=0.99 | **0.742** | 0.939 | **0.829** | **0.9721** | **127** |
+
+### Findings
+1. **Thresholding improved precision by 10.4% relative** (0.672 -> 0.742)
+   and cut false positives by 33% (189 -> 127 per ~504K flows).
+2. **Cost: recall fell 0.992 -> 0.939**, i.e. missed bots rose from 3 to 24
+   out of 390.
+3. **Macro F1 improved rather than degraded** (0.9682 -> 0.9721), because
+   the baseline was over-predicting Bots enough that trimming helped the
+   aggregate.
+4. **The selection generalised.** Validation-chosen threshold produced
+   comparable test behaviour, supporting the split methodology.
+5. **No threshold achieved precision >= 0.90** anywhere on the sweep. With
+   1,559 training samples, thresholding alone cannot yield a high-precision
+   bot detector. This is a data-scarcity ceiling, not a tuning failure.
+6. **Optimum pinned at the grid boundary (t=0.99).** Bots F1 was still
+   increasing at the highest threshold tested, so the true optimum may lie
+   above the sweep range.
+
+### Operational interpretation
+At t=0.99 the system raises 127 false Bots alerts per ~504K flows while
+detecting 94% of genuine bot traffic. Whether this is acceptable depends on
+analyst capacity and the cost asymmetry between a missed bot and a wasted
+investigation — a deployment-context decision rather than a modelling one.
+The threshold is a tunable operational control, not a fixed property.
+
+### Limitations
+- Single seed (42); E3's variance estimates suggest ~+/-0.002 macro F1, but
+  threshold stability across seeds was not tested.
+- Only the Bots class was tuned. Per-class thresholds for all classes were
+  not explored.
+- Probability calibration (Platt scaling, isotonic regression) untested;
+  the boundary-pinned optimum suggests the model's probabilities may be
+  poorly calibrated for this class.
+
+### Artefacts
+- `docs/results/e4_threshold_sweep_val.csv`
+- `docs/results/e4_test_comparison.csv`
+- `docs/results/e4_threshold_curves.png`
+- `docs/results/e4_chosen_threshold.json`

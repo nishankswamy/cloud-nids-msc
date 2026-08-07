@@ -1,0 +1,7 @@
+{
+  "target_class": "Bots",
+  "chosen_threshold": 0.99,
+  "high_precision_threshold": 0.999,
+  "selected_on": "validation",
+  "seed": 42
+}
