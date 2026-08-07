@@ -24,3 +24,4 @@ aws_config.json
 .DS_Store
 data/sample/
 *.bak
+artefacts/*.pkl
