@@ -168,3 +168,17 @@ committed to infra/, giving a reproducible and auditable record.
 - [ ] Lambda attached to VPC and re-verified
 - [ ] Function URL with IAM authentication
 - [ ] STRIDE threat model against the built architecture
+
+### 6.5 VPC attachment result (confirmed)
+
+The function was attached to two private subnets with a security group
+permitting egress only to the S3 prefix list on 443. Re-running the 35-flow
+verification returned 35/35 correct, confirming:
+
+- The S3 gateway endpoint successfully routes model retrieval with no
+  internet gateway and no NAT gateway present
+- CloudWatch log delivery does not traverse the customer VPC interface and
+  requires no interface endpoint (saving ~$7/month)
+- The restricted egress security group does not block required traffic
+
+Network isolation was therefore achieved at zero additional cost.
