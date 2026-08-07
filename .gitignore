@@ -22,3 +22,4 @@ aws_config.json
 
 # macOS
 .DS_Store
+data/sample/
