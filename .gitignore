@@ -25,3 +25,5 @@ aws_config.json
 data/sample/
 *.bak
 artefacts/*.pkl
+lambda/python_deps/
+lambda/*.zip
