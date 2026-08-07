@@ -215,3 +215,31 @@ latency-sensitive functions on the basis of the older behaviour.
 
 Network isolation was therefore achieved at no measurable latency cost and
 no monetary cost.
+
+### 6.6 Function URL authentication (verified)
+
+A Lambda Function URL was created with auth-type AWS_IAM and a resource
+policy granting lambda:InvokeFunctionUrl to a single IAM principal,
+conditioned on lambda:FunctionUrlAuthType being AWS_IAM.
+
+| Test | Request | Result |
+|---|---|---|
+| 1 | Unsigned POST | HTTP 403 |
+| 2 | SigV4-signed POST | HTTP 200, prediction returned |
+
+The endpoint is therefore not publicly invokable. Authorisation requires
+both a valid SigV4 signature and an allowing statement in the function's
+resource policy: two independent conditions.
+
+**Policy layering.** Three distinct policy types now govern this system:
+identity-based (the execution role's permissions), resource-based on S3
+(the TLS-deny bucket policy), and resource-based on Lambda (the invoke
+policy above). Each fails independently, which is the practical meaning of
+defence in depth in this architecture.
+
+**Accepted limitation.** Because API Gateway was not used (see 2.3), there
+is no request throttling or WAF in front of this endpoint. A principal
+holding valid credentials could invoke it without rate limiting. Lambda
+reserved concurrency would cap total concurrent executions but cannot rate
+limit per caller. This is recorded as an unmitigated Denial of Service
+exposure in the threat model.
