@@ -182,3 +182,36 @@ verification returned 35/35 correct, confirming:
 - The restricted egress security group does not block required traffic
 
 Network isolation was therefore achieved at zero additional cost.
+
+### 6.5 VPC attachment result (confirmed)
+
+The function was attached to two private subnets with a security group
+permitting egress only to the S3 prefix list on port 443. Confirmed with
+LastUpdateStatus Successful before re-testing; the CloudWatch log shows a
+cold start after attachment that retrieved the model and scored 35 flows,
+all correctly classified.
+
+Confirmed empirically:
+
+- The S3 gateway endpoint routes model retrieval with no internet gateway
+  and no NAT gateway present
+- CloudWatch log delivery does not traverse the customer VPC interface and
+  needs no interface endpoint (saving ~$7/month)
+- The restricted-egress security group does not block required traffic
+
+**Cold start comparison**
+
+| Configuration | Init duration | Invocation | Memory used |
+|---|---|---|---|
+| Public (no VPC) | 681 ms | 618 ms | 187 MB |
+| Private subnet | 649 ms | 626 ms | 187 MB |
+
+The VPC cold-start penalty widely reported in the literature (historically
+8-10s while an ENI was provisioned per invocation) did not materialise.
+AWS re-architected VPC networking for Lambda in 2019 to pre-provision
+shared, function-level ENIs, and this measurement is consistent with that
+change. Much published guidance still advises avoiding VPC attachment for
+latency-sensitive functions on the basis of the older behaviour.
+
+Network isolation was therefore achieved at no measurable latency cost and
+no monetary cost.
