@@ -1,0 +1,7 @@
+attack_class,flows_tested,evaded,evasion_rate,median_slowdown,min_slowdown,p90_slowdown
+Bots,50,50,1.0,9.38,1.0,12.74
+Brute Force,50,2,0.04,358.43,233.57,458.32
+DDoS,50,44,0.88,7.0,1.0,78.38
+DoS,50,10,0.2,7.25,1.05,1000.0
+Port Scanning,50,50,1.0,2.88,1.0,4.5
+Web Attacks,50,50,1.0,1.65,1.45,1.95

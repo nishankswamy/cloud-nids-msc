@@ -89,8 +89,10 @@ st.title("Network intrusion detection console")
 st.caption(f"Inference endpoint: {FUNCTION} ({REGION}) — "
            "XGBoost, class-weighted, Bots threshold 0.99")
 
-tab_detect, tab_ops, tab_about = st.tabs(
-    ["Detection", "Operations", "Model"])
+import threats
+
+tab_detect, tab_ops, tab_threat, tab_about = st.tabs(
+    ["Detection", "Operations", "Threats", "Model"])
 
 with tab_detect:
     left, right = st.columns([1, 2])
@@ -205,6 +207,9 @@ with tab_ops:
             st.error(f"{int(thr)} throttled invocations in window")
     except Exception as e:
         st.error(f"Could not read CloudWatch metrics: {e}")
+
+with tab_threat:
+    threats.render()
 
 with tab_about:
     st.subheader("Deployed model")
