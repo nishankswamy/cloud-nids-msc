@@ -1,0 +1,12 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": [
+      "logs:CreateLogStream",
+      "logs:PutLogEvents",
+      "logs:DescribeLogStreams"
+    ],
+    "Resource": "arn:aws:logs:eu-central-1:361728716884:log-group:/aws/vpc/nids-flow-logs:*"
+  }]
+}
