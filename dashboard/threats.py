@@ -60,9 +60,12 @@ THREATS = [
          action="None; retest after any endpoint configuration change"),
     dict(id="T09", component="Lambda function", category="Elevation",
          threat="Compromised function reaches other account resources",
-         likelihood=1, impact=5, status="Mitigated",
-         evidence="Zero managed policies; three resource-scoped inline policies",
-         action="Three EC2 Describe actions remain unscopable by platform"),
+         likelihood=1, impact=4, status="Partially mitigated",
+         evidence="S3 access is one scoped inline read-only statement; two AWS "
+                  "managed policies (basic execution, VPC access) remain attached "
+                  "with Resource: *",
+         action="Replace the two managed policies with scoped inline equivalents; "
+                "three EC2 Describe actions remain unscopable by platform"),
     dict(id="T10", component="Lambda function", category="Info disclosure",
          threat="Data exfiltrated from the inference environment",
          likelihood=1, impact=4, status="Mitigated",
