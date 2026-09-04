@@ -244,3 +244,212 @@ The threshold is a tunable operational control, not a fixed property.
 - `docs/results/e4_test_comparison.csv`
 - `docs/results/e4_threshold_curves.png`
 - `docs/results/e4_chosen_threshold.json`
+
+---
+
+## E5 — Adversarial evasion testing
+
+**Date:** 2026-08-08
+**Script:** `src/experiment_evasion.py`
+
+### Motivation
+The STRIDE threat model (extended with MITRE ATLAS categories for ML-specific
+threats) recorded model evasion as a High-severity threat, unmitigated and
+untested against the deployed artefact. This experiment tests it directly
+rather than leaving it as an assessed-but-unverified risk.
+
+### Method
+Gradient-free black-box attack against the deployed configuration (XGBoost +
+class weighting + the E4 Bots threshold, macro F1 0.9721), since the
+artefact is a tree ensemble with no exposed gradient. For each
+correctly-classified attack flow in the test set: escalating random search
+across perturbation magnitude and direction until the prediction flips to
+Normal Traffic, then a binary search along the successful direction for the
+minimum L2 magnitude (in standard-deviation units) that still evades.
+Perturbed vectors are clipped to non-negative raw values, since negative
+durations, counts and lengths cannot occur.
+
+Two conditions, 30 flows per attack class, seed 42:
+
+- **Unconstrained** — all 52 features may be perturbed. The standard
+  adversarial-ML setting, and what most published evasion results measure.
+- **Constrained** — only the 28 features an attacker can actually
+  manipulate (forward-direction timing and sizing) may be perturbed.
+  Backward-direction statistics are the victim's responses, TCP flag counts
+  are fixed by protocol semantics, initial window size and MSS come from
+  the TCP stack, and destination port is fixed by the targeted service —
+  none of these are attacker-controlled degrees of freedom.
+
+Only flows the deployed model already classifies correctly were attacked;
+evading a flow it already gets wrong would prove nothing.
+
+### Results
+
+| Attack class | Unconstrained evasion | Constrained evasion | Constrained median perturbation (SD units) |
+|---|---|---|---|
+| Bots | 100% | 100% | 0.007 |
+| Brute Force | 100% | 100% | 0.142 |
+| DDoS | 100% | 100% | 0.111 |
+| DoS | 100% | 70% | 0.896 |
+| Port Scanning | 100% | 100% | 0.008 |
+| Web Attacks | 100% | 100% | 0.055 |
+
+Full data: `docs/results/e5_evasion.csv`. Most-exploited features under the
+realistic (constrained) condition — Flow Duration, Fwd IAT Max, Flow IAT
+Mean, Flow IAT Max, Fwd IAT Total — together account for ~22% of total
+perturbation weight (`docs/results/e5_exploited_features.csv`).
+
+### Findings
+1. **Unconstrained evasion is total.** Every class reaches 100% evasion,
+   most at near-zero perturbation (median 0.000-0.004 SD): the model has
+   essentially no margin against an attacker with unrestricted feature
+   access.
+2. **Constrained evasion is still severe.** Five of six classes still reach
+   100% evasion using only attacker-realistic features; only DoS drops, to
+   70%, at a much larger required perturbation (median 0.896 SD vs <=0.14 SD
+   for the rest).
+3. **The gap between conditions is the intended finding.** Realistic
+   constraints reduce evasion for DoS specifically — large-volume floods
+   are harder to disguise by nudging forward-timing features alone — but
+   barely touch the other five classes, which evade almost as easily
+   whether or not the attacker is realistically constrained.
+4. **The exploited features are exactly the timing statistics the model
+   relies on for detection** (Flow/Fwd IAT, Flow Duration): the same
+   features driving 0.97 macro F1 are the ones an attacker can cheaply
+   manipulate, since none of them are set by the victim or the protocol.
+
+### Limitations
+- Single seed (42); no variance estimate across seeds as in E3.
+- Random-search attack, not a gradient-based or genetic attack — a
+  stronger optimiser could find smaller or more reliable perturbations, so
+  these numbers are upper bounds on required attacker effort, not lower
+  bounds.
+- Evaluated offline against cached test-set flows, not against the live
+  Lambda endpoint or a real network stack.
+- Does not test whether any control other than the ML classifier itself
+  (rate limiting, behavioural correlation) would catch the perturbed
+  traffic.
+
+### Follow-up
+E6 addresses one further weakness directly: E5 perturbs correlated timing
+features (Flow Duration, Fwd IAT Total, Flow IAT Mean, etc.) independently,
+describing flows that could not physically occur from a single attacker
+action.
+
+### Artefacts
+- `docs/results/e5_evasion.csv`
+- `docs/results/e5_exploited_features.csv`
+- `docs/results/e5_config.json`
+
+## E6 — Semantically-consistent evasion
+
+**Date:** 2026-08-08
+**Script:** `src/experiment_evasion_semantic.py`
+
+### Motivation
+E5's independent-feature perturbation has a methodological weakness: Flow
+Duration, Fwd IAT Total and Flow IAT Mean are all derived from the same
+packet timestamps, so perturbing them independently describes flows that
+could not exist on a real network. The direction of the E5 finding is
+sound but its magnitudes are optimistic for the attacker. E6 removes that
+weakness by reducing the attack to two physical parameters an attacker
+actually controls, with every affected feature recomputed consistently
+from them.
+
+### Method
+Two attacker knobs, both physically realisable:
+
+- **time_scale** — proportional delay inserted between packets (a
+  `sleep()` between sends). All duration/inter-arrival/active/idle
+  features scale up by this factor; every per-second rate feature scales
+  down by the same factor.
+- **pad_bytes** — padding added to forward packets. Forward packet-length
+  and forward-byte-total features, and the forward share of
+  mixed-direction length statistics, are recomputed accordingly; byte rate
+  is adjusted to stay internally consistent with the padded byte count and
+  the (possibly stretched) duration.
+
+For each correctly-classified attack flow (50 per class, seed 42), the
+minimum `time_scale` that flips the prediction to Normal Traffic was found
+by grid search (0.05 steps to 2x, 0.25 steps to 10x, then a geometric sweep
+to `max_scale`), at two fixed padding levels: 0 bytes and 20 bytes/packet.
+Every candidate flow is internally consistent and physically realisable, so
+the result is a lower bound on attacker capability rather than an artefact
+of independent perturbation.
+
+### Results
+
+**No padding (pad_bytes = 0), max slowdown searched 50x:**
+
+| Attack class | Evasion rate | Median slowdown | Min slowdown |
+|---|---|---|---|
+| Bots | 100% | 10.88x | 1.15x |
+| Web Attacks | 100% | 11.85x | 1.5x |
+| Port Scanning | 96% | 14.65x | 5.5x |
+| DoS | 12% | 38.92x | 1.05x |
+| Brute Force | 0% | — | — |
+| DDoS | 0% | — | — |
+
+**With padding (pad_bytes = 20 bytes/packet), max slowdown searched 1000x:**
+
+| Attack class | Evasion rate | Median slowdown | Min slowdown |
+|---|---|---|---|
+| Bots | 100% | 9.38x | 1.0x |
+| Port Scanning | 100% | 2.88x | 1.0x |
+| Web Attacks | 100% | 1.65x | 1.45x |
+| DDoS | 88% | 7.0x | 1.0x |
+| DoS | 20% | 7.25x | 1.05x |
+| Brute Force | 4% | 358.43x | 233.57x |
+
+Full data: `docs/results/e6_semantic_evasion_pad0.0.csv`,
+`docs/results/e6_semantic_evasion_pad20.0.csv`.
+
+### Findings
+1. **Timing manipulation alone (no padding) evades Bots, Web Attacks and
+   Port Scanning almost completely** at a moderate (~11-15x) slowdown, but
+   Brute Force and DDoS show 0% evasion within the 50x search range —
+   those classes' detection does not hinge on timing alone.
+2. **Adding 20 bytes/packet of padding changes which classes are
+   vulnerable, not whether evasion is possible overall.** DDoS jumps from
+   0% to 88% evasion once padding is available, and the slowdown required
+   for Port Scanning and Web Attacks drops sharply (14.65x -> 2.88x,
+   11.85x -> 1.65x) — padding and timing are compensating levers, not
+   independent risks.
+3. **Brute Force is the most robust class in both conditions** (0%, then
+   4% evasion, and the one flow that did evade needed a 233-358x
+   slowdown) — consistent with Brute Force being the only class with
+   perfect precision and recall in the base model (README results table),
+   and suggesting its detection relies on features outside this attack's
+   two knobs.
+4. **Even under the more conservative, physically-realisable model, four
+   of six classes remain majority-evadable** (Bots, Web Attacks, Port
+   Scanning always; DDoS once padding is available) at slowdowns of
+   roughly 1-15x — stretching a one-second flood to somewhere between one
+   and fifteen seconds, well within reach of an unhurried attacker.
+5. **This is a materially lower-magnitude version of the E5 finding, not a
+   contradiction of it.** Requiring realistic, internally-consistent
+   perturbations narrows which classes evade easily (Brute Force, and
+   DDoS without padding, resist) but does not remove the underlying
+   vulnerability for the rest.
+
+### Limitations
+- Only two attacker knobs tested (time_scale, pad_bytes); other physically
+  realisable manipulations (packet fragmentation, decoy traffic,
+  protocol-specific tricks) are untested.
+- Grid search over time_scale at one fixed padding level at a time, not a
+  joint optimisation over both knobs — the reported slowdowns are not
+  necessarily the jointly optimal (potentially smaller) combination.
+- Evaluated offline against cached flows, not the live endpoint, as in E5.
+- Single seed (42).
+
+### Operational interpretation
+Taken with E5, these results confirm the STRIDE assessment of model
+evasion as High severity, and close its "untested" status: for most attack
+classes, an attacker who can insert delay and/or pad packets — both cheap,
+no-exploit-required actions — can evade the deployed classifier at
+moderate cost. No mitigation for this is currently deployed (see README,
+Security > Gaps).
+
+### Artefacts
+- `docs/results/e6_semantic_evasion_pad0.0.csv`, `e6_config_pad0.0.json`
+- `docs/results/e6_semantic_evasion_pad20.0.csv`, `e6_config_pad20.0.json`

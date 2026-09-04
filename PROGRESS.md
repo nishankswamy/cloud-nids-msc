@@ -13,3 +13,16 @@
   First invocation: 681ms init, 618ms duration, 187MB/1024MB memory used.
   Troubleshooting: console role creation silently failed; recreated via CLI
   and saved policy documents to infra/ for reproducibility.
+
+## Week 2
+- **2026-08-08** — Adversarial evasion testing (E5, E6). Confirmed the
+  STRIDE-flagged "model evasion" risk empirically rather than leaving it
+  assessed-but-untested: black-box random-search attack (E5) found total
+  evasion (100%) for 5/6 attack classes under attacker-realistic feature
+  constraints; a semantically-consistent follow-up (E6, two physical
+  attacker knobs — proportional delay and packet padding) confirmed the
+  finding at more conservative magnitudes (median slowdown ~1-15x for the
+  vulnerable classes). Brute Force was the one consistently robust class.
+- **2026-09-04** — Wrote up E5/E6 in `docs/EXPERIMENTS.md` and updated the
+  README's Security > Gaps section, which previously still said evasion
+  was "untested" despite the results already being committed.

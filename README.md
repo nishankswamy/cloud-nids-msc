@@ -101,7 +101,7 @@ The system was threat-modelled with STRIDE, extended with MITRE ATLAS categories
 
 **Gaps recorded rather than hidden**
 
-Model evasion is untested and is the highest-severity open risk. Per-caller rate limiting is absent, a consequence of choosing a Function URL over API Gateway on cost grounds. Three EC2 `Describe` actions cannot be resource-scoped — AWS does not support it — and remain wildcarded.
+Model evasion was tested (E5, E6 — see `docs/EXPERIMENTS.md`) and confirmed as the highest-severity open risk, not merely assumed. Under attacker-realistic constraints, five of six attack classes reach total or near-total evasion — most via cheap timing manipulation alone (proportional packet delay, no exploit required), at a median slowdown of roughly 1–15x depending on class. Brute Force is the one consistently robust class. No mitigation for this is currently deployed. Per-caller rate limiting is absent, a consequence of choosing a Function URL over API Gateway on cost grounds. Three EC2 `Describe` actions cannot be resource-scoped — AWS does not support it — and remain wildcarded.
 
 ---
 
