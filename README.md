@@ -36,7 +36,7 @@ Analyst workstation
 | Storage | S3 | Private, SSE-S3, versioning, TLS enforced by bucket policy |
 | Network | VPC | Two private subnets, no internet gateway, no NAT gateway |
 | AWS access | Gateway endpoint | S3 only, no charge |
-| Identity | IAM role | Three scoped inline policies, zero managed policies |
+| Identity | IAM role | One scoped inline policy (s3:GetObject, single prefix); two AWS managed policies also attached |
 | Interface | Function URL | AWS_IAM auth, single named principal |
 
 ---
@@ -87,7 +87,7 @@ The system was threat-modelled with STRIDE, extended with MITRE ATLAS categories
 | Endpoint rejects unauthenticated requests | Unsigned request returns HTTP 403; signed request returns 200 |
 | No internet route from the inference function | Operates correctly in a subnet with no IGW and no NAT |
 | Egress restricted to required destinations | Default allow-all revoked; HTTPS to the S3 prefix list only |
-| Least privilege on the execution role | Zero managed policies; three inline policies, each resource-scoped |
+| Least privilege on the execution role | S3 access is one inline, read-only, single-prefix statement — no PutObject, ListBucket, or wildcards |
 | Inference cannot modify the model | Role holds object read only — no write, delete, or list |
 | Format conversion preserves behaviour | 5,000 samples: max probability delta 2.4e-07, label agreement 1.000000 |
 
@@ -101,7 +101,7 @@ The system was threat-modelled with STRIDE, extended with MITRE ATLAS categories
 
 **Gaps recorded rather than hidden**
 
-Model evasion was tested (E5, E6 — see `docs/EXPERIMENTS.md`) and confirmed as the highest-severity open risk, not merely assumed. Under attacker-realistic constraints, five of six attack classes reach total or near-total evasion — most via cheap timing manipulation alone (proportional packet delay, no exploit required), at a median slowdown of roughly 1–15x depending on class. Brute Force is the one consistently robust class. No mitigation for this is currently deployed. Per-caller rate limiting is absent, a consequence of choosing a Function URL over API Gateway on cost grounds. Three EC2 `Describe` actions cannot be resource-scoped — AWS does not support it — and remain wildcarded.
+Model evasion was tested (E5, E6 — see `docs/EXPERIMENTS.md`) and confirmed as the highest-severity open risk, not merely assumed. Under attacker-realistic constraints, five of six attack classes reach total or near-total evasion — most via cheap timing manipulation alone (proportional packet delay, no exploit required), at a median slowdown of roughly 1–15x depending on class. Brute Force is the one consistently robust class. No mitigation for this is currently deployed. Per-caller rate limiting is absent, a consequence of choosing a Function URL over API Gateway on cost grounds. Three EC2 `Describe` actions cannot be resource-scoped — AWS does not support it — and remain wildcarded. The execution role also carries two AWS managed policies (`AWSLambdaBasicExecutionRole`, `AWSLambdaVPCAccessExecutionRole`) whose actions are granted on `Resource: *` rather than scoped to what the function actually needs — a known over-permission on the logging/ENI-management side of the role, distinct from the tightly-scoped S3 grant, and not yet remediated.
 
 ---
 
