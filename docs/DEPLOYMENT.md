@@ -165,9 +165,12 @@ committed to infra/, giving a reproducible and auditable record.
 - [x] Least-privilege IAM role
 - [x] Lambda deployed on arm64 and functionally verified
 - [x] VPC, private subnets, S3 gateway endpoint, restricted SG
-- [ ] Lambda attached to VPC and re-verified
-- [ ] Function URL with IAM authentication
-- [ ] STRIDE threat model against the built architecture
+- [x] Lambda attached to VPC and re-verified — see 6.5, 35/35 correct post-attachment
+- [x] Function URL with IAM authentication — see 6.6, unsigned 403 / signed 200
+- [x] STRIDE threat model against the built architecture — 18 requirements traced
+      threat-to-evidence (README, Security); evasion (the one High-severity item
+      left untested at the time this checklist was written) is now tested too,
+      see EXPERIMENTS.md E5/E6
 
 ### 6.5 VPC attachment result (confirmed)
 
